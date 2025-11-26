@@ -1,20 +1,42 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import WaitingRoom from '@/components/WaitingRoom';
+import { GameCanvas } from '@/components/GameCanvas';
+import { InputField } from '@/components/InputField';
+import { GameUI } from '@/components/GameUI';
+import { GameOver } from '@/components/GameOver';
+import { GameState } from '@/lib/types';
+import { getTimeUntilWallHit } from '@/lib/gameEngine';
 
 export default function MultiplayerPage() {
   const [gameMode, setGameMode] = useState<'choose' | 'create' | 'join'>('choose');
   const [playerName, setPlayerName] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [status, setStatus] = useState<'idle' | 'connecting' | 'waiting'>('idle');
+  const [isHost, setIsHost] = useState(false);
+  const [gameActive, setGameActive] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const gameStateRef = useRef<GameState | null>(null);
 
-  const handleGameStateUpdate = () => {};
-  const handleGameStart = () => {};
-  const handlePlayerJoined = () => {};
+  const handleGameStateUpdate = (state: GameState) => {
+    console.log('Game state updated:', state);
+  };
 
-  const { room, isConnected, joinRoom, createRoom } = useWebSocket(
+  const handleGameStart = (initialState: GameState) => {
+    console.log('Game starting:', initialState);
+    setGameActive(true);
+  };
+
+  const handlePlayerJoined = (joinedPlayerName: string) => {
+    console.log('Player joined:', joinedPlayerName);
+  };
+
+  const { room, gameState, isConnected, joinRoom, createRoom, startGame, submitWord, updatePlayerInput } = useWebSocket(
     handleGameStateUpdate,
     handleGameStart,
     handlePlayerJoined
@@ -26,6 +48,7 @@ export default function MultiplayerPage() {
       return;
     }
     setStatus('connecting');
+    setIsHost(true);
     createRoom(playerName);
   };
 
@@ -35,44 +58,115 @@ export default function MultiplayerPage() {
       return;
     }
     setStatus('connecting');
+    setIsHost(false);
     joinRoom(roomCode.toUpperCase(), playerName);
   };
 
-  if (room) {
+  const handleStartGame = () => {
+    startGame();
+  };
+
+  const handleInputChange = (input: string) => {
+    updatePlayerInput(input);
+  };
+
+  const handleSubmitWord = () => {
+    if (gameState && submitWord) {
+      const timeTaken = Date.now() - gameState.wordStartedAt;
+      submitWord(gameState.playerInput, timeTaken);
+    }
+  };
+
+  const handlePlayAgain = () => {
+    setGameActive(false);
+    // Could implement rematch logic here
+  };
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+  };
+
+  // Track latest gameState for timers without re-registering interval
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
+  // Derive time remaining and elapsed time from server state
+  useEffect(() => {
+    if (!gameActive) {
+      setTimeRemaining(0);
+      setElapsedTime(0);
+      return;
+    }
+
+    const updateTimes = () => {
+      const state = gameStateRef.current;
+      if (!state) return;
+
+      if (state.ballMovingToWall) {
+        setTimeRemaining(state.ballTravelTime);
+      } else {
+        const seconds = getTimeUntilWallHit(state.ball, state.currentPlayer);
+        setTimeRemaining(Math.max(0, seconds * 1000));
+      }
+      setElapsedTime(Math.max(0, Date.now() - state.wordStartedAt));
+    };
+
+    updateTimes();
+    const interval = setInterval(updateTimes, 100);
+    return () => clearInterval(interval);
+  }, [gameActive]);
+
+  // Show waiting room
+  if (room && !gameActive) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center max-w-lg bg-slate-800 p-8 rounded-lg border border-slate-700">
-          <h1 className="text-4xl font-bold text-white mb-4">Room: {room.roomId}</h1>
-          <p className="text-lg text-slate-300 mb-6">Waiting for opponent...</p>
+      <WaitingRoom
+        room={room}
+        isHost={isHost}
+        onStartGame={handleStartGame}
+        isReadyToStart={!!room.otherPlayerName}
+      />
+    );
+  }
 
-          <div className="bg-slate-900 p-6 rounded-lg mb-6 border border-slate-600">
-            <p className="text-sm text-slate-400 mb-2">Your Info:</p>
-            <p className="text-white font-semibold mb-1">{room.playerName}</p>
-            <p className="text-slate-400">Player {room.playerSide}</p>
+  // Show game
+  if (gameActive && gameState) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900 p-3 md:p-6">
+        {/* Mute button */}
+        <button
+          onClick={toggleMute}
+          className="fixed top-4 right-4 z-10 p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-600 transition-colors"
+          title={isMuted ? 'Unmute' : 'Mute'}
+        >
+          {isMuted ? '🔇' : '🔊'}
+        </button>
 
-            {room.otherPlayerName && (
-              <>
-                <hr className="my-4 border-slate-600" />
-                <p className="text-sm text-slate-400 mb-2">Opponent:</p>
-                <p className="text-white font-semibold">{room.otherPlayerName}</p>
-              </>
-            )}
+        <div className="flex flex-col items-center gap-4 md:gap-8 max-w-6xl mx-auto">
+          {/* UI Stats */}
+          <div className="w-full">
+            <GameUI gameState={gameState} timeRemaining={timeRemaining} elapsedTime={elapsedTime} />
           </div>
 
-          <div className="space-y-3">
-            <Link
-              href="/game"
-              className="inline-block w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors"
-            >
-              {room.otherPlayerName ? 'Start Game' : 'Go to Game'}
-            </Link>
-            <Link
-              href="/"
-              className="inline-block w-full px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-lg transition-colors"
-            >
-              Back to Menu
-            </Link>
+          {/* Game Canvas */}
+          <div className="w-full max-w-4xl">
+            <GameCanvas gameState={gameState} timeRemaining={timeRemaining} />
           </div>
+
+          {/* Input Field */}
+          <div className="w-full max-w-2xl px-2 md:px-0">
+            <InputField
+              gameState={gameState}
+              playerInput={gameState.playerInput}
+              onInputChange={handleInputChange}
+              onSubmit={handleSubmitWord}
+            />
+          </div>
+
+          {/* Game Over Modal */}
+          {gameState.gameStatus === 'lost' && (
+            <GameOver gameState={gameState} onPlayAgain={handlePlayAgain} />
+          )}
         </div>
       </div>
     );

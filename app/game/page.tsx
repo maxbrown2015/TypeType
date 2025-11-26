@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { GameCanvas } from '@/components/GameCanvas';
 import { InputField } from '@/components/InputField';
 import { GameUI } from '@/components/GameUI';
@@ -8,11 +9,22 @@ import { GameOver } from '@/components/GameOver';
 import { useGameState } from '@/hooks/useGameState';
 
 export default function GamePage() {
+  const searchParams = useSearchParams();
+  const isMultiplayer = searchParams.get('mode') === 'multiplayer';
+  
   const { gameState, timeRemaining, elapsedTime, startGame, updateInput, submitWord } =
     useGameState();
   const [gameStarted, setGameStarted] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Auto-start game in multiplayer mode
+  useEffect(() => {
+    if (isMultiplayer && !gameStarted) {
+      setGameStarted(true);
+      startGame();
+    }
+  }, [isMultiplayer, gameStarted, startGame]);
 
   // Play background music when game starts
   useEffect(() => {

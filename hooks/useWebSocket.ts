@@ -23,6 +23,19 @@ export const useWebSocket = (
   const socketRef = useRef<Socket | null>(null);
   const [room, setRoom] = useState<GameRoom | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  
+  // Store callback refs to avoid recreating listeners
+  const onGameStateUpdateRef = useRef(onGameStateUpdate);
+  const onGameStartRef = useRef(onGameStart);
+  const onPlayerJoinedRef = useRef(onPlayerJoined);
+
+  // Update refs when callbacks change
+  useEffect(() => {
+    onGameStateUpdateRef.current = onGameStateUpdate;
+    onGameStartRef.current = onGameStart;
+    onPlayerJoinedRef.current = onPlayerJoined;
+  }, [onGameStateUpdate, onGameStart, onPlayerJoined]);
 
   // Initialize socket connection
   useEffect(() => {
@@ -48,20 +61,36 @@ export const useWebSocket = (
       setRoom(data);
     });
 
-    socket.on('player_joined', (data: { playerName: string }) => {
-      onPlayerJoined(data.playerName);
-      setRoom((prev) =>
-        prev ? { ...prev, otherPlayerName: data.playerName } : null
-      );
+    socket.on('player_joined', (data: { playerName: string; otherPlayerName?: string }) => {
+      console.log('Player joined event:', data);
+      onPlayerJoinedRef.current(data.playerName);
+      setRoom((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          otherPlayerName: data.otherPlayerName || data.playerName,
+        };
+      });
     });
 
     socket.on('game_start', (initialState: GameState) => {
-      console.log('Game started');
-      onGameStart(initialState);
+      console.log('Game started with state:', initialState);
+      setGameState(initialState);
+      onGameStartRef.current(initialState);
     });
 
     socket.on('game_state_update', (state: GameState) => {
-      onGameStateUpdate(state);
+      console.log('Game state update:', state);
+      setGameState(state);
+      onGameStateUpdateRef.current(state);
+    });
+
+    socket.on('opponent_input_update', (data: { playerSide: number; input: string }) => {
+      console.log('Opponent input:', data);
+    });
+
+    socket.on('player_disconnected', (data: { playerSide: number }) => {
+      console.log('Player disconnected:', data);
     });
 
     socket.on('error', (error: string) => {
@@ -73,7 +102,7 @@ export const useWebSocket = (
     return () => {
       socket.disconnect();
     };
-  }, [onGameStateUpdate, onGameStart, onPlayerJoined]);
+  }, []);
 
   // Join or create a room
   const joinRoom = useCallback((roomId: string, playerName: string) => {
@@ -93,6 +122,13 @@ export const useWebSocket = (
     socketRef.current.emit('word_submitted', { word, timeTaken });
   }, []);
 
+  // Send live input to server (and sync locally)
+  const updatePlayerInput = useCallback((input: string) => {
+    if (!socketRef.current) return;
+    socketRef.current.emit('player_input_update', { input });
+    setGameState((prev) => (prev ? { ...prev, playerInput: input } : prev));
+  }, []);
+
   // Start game when both players are ready
   const startGame = useCallback(() => {
     if (!socketRef.current) return;
@@ -101,11 +137,13 @@ export const useWebSocket = (
 
   return {
     room,
+    gameState,
     isConnected,
     joinRoom,
     createRoom,
     submitWord,
     startGame,
+    updatePlayerInput,
     socket: socketRef.current,
   };
 };
