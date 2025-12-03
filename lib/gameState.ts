@@ -20,6 +20,8 @@ export const createEmptyScore = (): PlayerScore => ({
   totalWords: 0,
   accuracy: 100,
   averageResponseTime: 0,
+  totalKeystrokes: 0,
+  errantKeystrokes: 0,
 });
 
 /**
@@ -144,7 +146,8 @@ export const resetRound = (
 export const recordSuccessfulVolley = (
   state: GameState,
   player: PlayerSide,
-  timeTaken: number
+  timeTaken: number,
+  keystrokes: { total: number; errant: number }
 ): GameState => {
   const playerScore =
     player === 1 ? { ...state.player1Score } : { ...state.player2Score };
@@ -152,14 +155,24 @@ export const recordSuccessfulVolley = (
   playerScore.volleys += 1;
   playerScore.correctWords += 1;
   playerScore.totalWords += 1;
+  playerScore.totalKeystrokes += keystrokes.total;
+  playerScore.errantKeystrokes += keystrokes.errant;
   playerScore.averageResponseTime = Math.round(
     (playerScore.averageResponseTime * (playerScore.correctWords - 1) +
       timeTaken) /
       playerScore.correctWords
   );
-  playerScore.accuracy = Math.round(
-    (playerScore.correctWords / playerScore.totalWords) * 100
-  );
+  playerScore.accuracy =
+    playerScore.totalKeystrokes === 0
+      ? 100
+      : Math.max(
+          0,
+          Math.round(
+            ((playerScore.totalKeystrokes - playerScore.errantKeystrokes) /
+              playerScore.totalKeystrokes) *
+              100
+          )
+        );
   
   return {
     ...state,
@@ -174,15 +187,26 @@ export const recordSuccessfulVolley = (
  */
 export const recordFailedWord = (
   state: GameState,
-  player: PlayerSide
+  player: PlayerSide,
+  keystrokes: { total: number; errant: number }
 ): GameState => {
   const playerScore =
     player === 1 ? { ...state.player1Score } : { ...state.player2Score };
   
   playerScore.totalWords += 1;
-  playerScore.accuracy = Math.round(
-    (playerScore.correctWords / playerScore.totalWords) * 100
-  );
+  playerScore.totalKeystrokes += keystrokes.total;
+  playerScore.errantKeystrokes += keystrokes.errant;
+  playerScore.accuracy =
+    playerScore.totalKeystrokes === 0
+      ? 100
+      : Math.max(
+          0,
+          Math.round(
+            ((playerScore.totalKeystrokes - playerScore.errantKeystrokes) /
+              playerScore.totalKeystrokes) *
+              100
+          )
+        );
   
   return {
     ...state,

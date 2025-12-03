@@ -28,15 +28,15 @@ const players = new Map();
 
 // Game config (matching client config)
 const INITIAL_TIME_LIMIT = 3000; // ms (matches client ballTravelTime)
-const INITIAL_SPEED = 165; // px/s
+const INITIAL_SPEED = 220; // px/s (scaled for wider canvas)
 const SPEED_MULTIPLIER = 1.05;
-const BALL_SIZE = 15;
-const CANVAS_WIDTH = 1200;
-const CANVAS_HEIGHT = 600;
+const BALL_SIZE = 20;
+const CANVAS_WIDTH = 1600;
+const CANVAS_HEIGHT = 800;
 const WALL_THICKNESS = 20;
-const P1_START_X = 40;
-const P2_START_X = 1200 - 40;
-const CENTER_Y = 300;
+const P1_START_X = 60;
+const P2_START_X = 1600 - 60;
+const CENTER_Y = 400;
 const BALL_ZOOM_MULTIPLIER = 3.5;
 const MAX_VERTICAL_VELOCITY = 250;
 const BALL_TRAVEL_TIME = 3000; // base ms, decreases by level
@@ -83,6 +83,32 @@ const getSpeedMultiplier = (level) => Math.pow(SPEED_MULTIPLIER, level - 1);
 const getBallTravelTime = (level) => {
   const reduction = Math.max(0.65, 1 - (level - 1) * 0.01);
   return BALL_TRAVEL_TIME * reduction;
+};
+
+const computeAccuracy = (score) => {
+  if (score.totalKeystrokes === 0) return 100;
+  return Math.max(
+    0,
+    Math.round(
+      ((score.totalKeystrokes - score.errantKeystrokes) / score.totalKeystrokes) *
+        100
+    )
+  );
+};
+
+const calculateKeystrokeStats = (input, target) => {
+  const total = input.length;
+  let errant = 0;
+  const len = Math.min(input.length, target.length);
+  for (let i = 0; i < len; i++) {
+    if (input[i] !== target[i]) {
+      errant += 1;
+    }
+  }
+  if (input.length > target.length) {
+    errant += input.length - target.length;
+  }
+  return { totalKeystrokes: total, errantKeystrokes: errant };
 };
 
 // Initialize ball
@@ -219,6 +245,20 @@ const startRoomLoop = (roomId) => {
       state.ballTravelTime = getBallTravelTime(state.level);
     } else if (collision && !state.ballMovingToWall) {
       // Missed word -> loss
+      const leftWall = P1_START_X + WALL_THICKNESS / 2;
+      const rightWall = P2_START_X - WALL_THICKNESS / 2;
+      state.ball.position.x =
+        collision === 1
+          ? leftWall + state.ball.size / 2
+          : rightWall - state.ball.size / 2;
+      state.ball.velocity.vx = 0;
+      state.ball.velocity.vy = 0;
+      const losingPlayerScore =
+        collision === 1 ? state.player1Score : state.player2Score;
+      const keystrokes = calculateKeystrokeStats(state.playerInput || '', state.targetWord);
+      losingPlayerScore.totalKeystrokes += keystrokes.totalKeystrokes;
+      losingPlayerScore.errantKeystrokes += keystrokes.errantKeystrokes;
+      losingPlayerScore.accuracy = computeAccuracy(losingPlayerScore);
       state.gameStatus = 'lost';
       state.losingPlayer = state.currentPlayer;
       stopRoomLoop(roomId);
@@ -257,21 +297,25 @@ const initializeGameState = () => {
     ballMovingToWall: false,
     
     // Score tracking for both players
-    player1Score: {
-      volleys: 0,
-      correctWords: 0,
-      totalWords: 0,
-      accuracy: 100,
-      averageResponseTime: 0,
-    },
-    player2Score: {
-      volleys: 0,
-      correctWords: 0,
-      totalWords: 0,
-      accuracy: 100,
-      averageResponseTime: 0,
-    },
-  };
+  player1Score: {
+    volleys: 0,
+    correctWords: 0,
+    totalWords: 0,
+    accuracy: 100,
+    averageResponseTime: 0,
+    totalKeystrokes: 0,
+    errantKeystrokes: 0,
+  },
+  player2Score: {
+    volleys: 0,
+    correctWords: 0,
+    totalWords: 0,
+    accuracy: 100,
+    averageResponseTime: 0,
+    totalKeystrokes: 0,
+    errantKeystrokes: 0,
+  },
+};
 };
 
 io.on('connection', (socket) => {
@@ -399,6 +443,9 @@ io.on('connection', (socket) => {
     const isCorrect = data.word.toLowerCase() === gameState.targetWord.toLowerCase();
     const timeTaken = Date.now() - gameState.wordStartedAt;
     const playerScore = player.playerSide === 1 ? gameState.player1Score : gameState.player2Score;
+    const keystrokes = calculateKeystrokeStats(data.word, gameState.targetWord);
+    playerScore.totalKeystrokes += keystrokes.totalKeystrokes;
+    playerScore.errantKeystrokes += keystrokes.errantKeystrokes;
 
     if (isCorrect) {
       // Update score
@@ -411,7 +458,7 @@ io.on('connection', (socket) => {
       playerScore.averageResponseTime = Math.round(totalTime / playerScore.correctWords);
       
       // Update accuracy
-      playerScore.accuracy = Math.round((playerScore.correctWords / playerScore.totalWords) * 100);
+      playerScore.accuracy = computeAccuracy(playerScore);
 
       // Advance level every two volleys (both players combined)
       const totalVolleys = gameState.player1Score.volleys + gameState.player2Score.volleys;
@@ -432,13 +479,13 @@ io.on('connection', (socket) => {
     } else {
       // Update score even for incorrect
       playerScore.totalWords += 1;
-      playerScore.accuracy = playerScore.totalWords > 0 
-        ? Math.round((playerScore.correctWords / playerScore.totalWords) * 100)
-        : 0;
+      playerScore.accuracy = computeAccuracy(playerScore);
 
       // Word is incorrect, current player loses
       gameState.gameStatus = 'lost';
       gameState.losingPlayer = player.playerSide;
+      gameState.ball.velocity.vx = 0;
+      gameState.ball.velocity.vy = 0;
       stopRoomLoop(player.roomId);
     }
 

@@ -6,9 +6,9 @@ import { GameConfig } from '@/lib/types';
 
 export const GAME_CONFIG: GameConfig = {
   // Ball physics
-  initialBallSpeed: 165, // pixels per second (increased from 150)
+  initialBallSpeed: 220, // scaled up to keep same crossing time on wider canvas
   ballAcceleration: 1.05, // multiply by this each volley (gentler curve)
-  ballSize: 15,
+  ballSize: 20,
   ballZoomMultiplier: 3.5, // speed multiplier when moving to wall after successful word
   maxVerticalVelocity: 250, // cap vertical velocity to prevent excessive bouncing
   
@@ -17,14 +17,14 @@ export const GAME_CONFIG: GameConfig = {
   timeBuffer: 500, // extra ms before automatic loss
   
   // Canvas dimensions
-  canvasWidth: 1200,
-  canvasHeight: 600,
+  canvasWidth: 1600,
+  canvasHeight: 800,
   wallThickness: 20,
   
   // Player zones
-  p1StartX: 40, // pixel from left where P1 wall is
-  p2StartX: 1200 - 40, // pixel from left where P2 wall is
-  centerY: 300, // middle height of canvas
+  p1StartX: 60, // pixel from left where P1 wall is
+  p2StartX: 1600 - 60, // pixel from left where P2 wall is
+  centerY: 400, // middle height of canvas
   
   // Physics
   gravity: 0, // no gravity - 2D side view

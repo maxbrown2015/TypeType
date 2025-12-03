@@ -19,6 +19,7 @@ import {
   validateWord,
   bounceBall,
   getTimeUntilWallHit,
+  calculateKeystrokeStats,
 } from '@/lib/gameEngine';
 import { GAME_CONFIG, getBallTravelTime } from '@/constants/gameConfig';
 
@@ -66,7 +67,11 @@ export const useGameState = () => {
 
       // Word is correct - mark ball to move to wall and bounce
       const timeTaken = Date.now() - prev.wordStartedAt;
-      let nextState = recordSuccessfulVolley(prev, prev.currentPlayer, timeTaken);
+      const keystrokes = calculateKeystrokeStats(prev.playerInput, prev.targetWord);
+      let nextState = recordSuccessfulVolley(prev, prev.currentPlayer, timeTaken, {
+        total: keystrokes.totalKeystrokes,
+        errant: keystrokes.errantKeystrokes,
+      });
 
       // Every 2 volleys, advance level
       if (nextState.player1Score.volleys + nextState.player2Score.volleys > 0) {
@@ -150,8 +155,12 @@ export const useGameState = () => {
         
         // Normal wall collision (player loses because they didn't type in time)
         if (losingPlayer && !prev.ballMovingToWall) {
+          const keystrokes = calculateKeystrokeStats(prev.playerInput, prev.targetWord);
           return {
-            ...recordFailedWord(prev, losingPlayer),
+            ...recordFailedWord(prev, losingPlayer, {
+              total: keystrokes.totalKeystrokes,
+              errant: keystrokes.errantKeystrokes,
+            }),
             ball: updatedBall,
             gameStatus: 'lost',
           };
@@ -191,8 +200,12 @@ export const useGameState = () => {
     if (timeRemaining <= 0 && gameState?.gameStatus === 'playing') {
       setGameState((prev) => {
         if (!prev) return prev;
+        const keystrokes = calculateKeystrokeStats(prev.playerInput, prev.targetWord);
         return {
-          ...recordFailedWord(prev, prev.currentPlayer),
+          ...recordFailedWord(prev, prev.currentPlayer, {
+            total: keystrokes.totalKeystrokes,
+            errant: keystrokes.errantKeystrokes,
+          }),
           gameStatus: 'lost',
         };
       });

@@ -87,12 +87,6 @@ export const GameUI: React.FC<GameUIProps> = ({ gameState, timeRemaining, elapse
         </div>
       </div>
 
-      {/* Game status indicator */}
-      {gameState.gameStatus === 'lost' && (
-        <div className="px-2 md:px-4 py-3 mt-4 bg-red-900 border border-red-500 rounded-lg">
-          <p className="text-red-200 font-semibold text-center text-sm md:text-base">Game Over!</p>
-        </div>
-      )}
     </div>
   );
 };

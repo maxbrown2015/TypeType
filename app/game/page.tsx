@@ -16,6 +16,7 @@ export default function GamePage() {
     useGameState();
   const [gameStarted, setGameStarted] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [showGameOver, setShowGameOver] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // Auto-start game in multiplayer mode
@@ -47,6 +48,7 @@ export default function GamePage() {
 
   const handlePlayAgain = () => {
     setGameStarted(false);
+    setShowGameOver(false);
     setTimeout(() => handleStartGame(), 100);
   };
 
@@ -56,6 +58,15 @@ export default function GamePage() {
       audioRef.current.volume = isMuted ? 0.3 : 0;
     }
   };
+
+  useEffect(() => {
+    if (gameState?.gameStatus === 'lost') {
+      const timer = setTimeout(() => setShowGameOver(true), 2000);
+      return () => clearTimeout(timer);
+    } else {
+      setShowGameOver(false);
+    }
+  }, [gameState?.gameStatus]);
 
   if (!gameStarted || !gameState) {
     return (
@@ -91,7 +102,7 @@ export default function GamePage() {
       {/* Background music */}
       <audio
         ref={audioRef}
-        src="/pixel-fight-8-bit-arcade-music-background-music-for-video-208775.mp3"
+        src="/typetype-pixel-fight.mp3"
         loop
       />
 
@@ -126,7 +137,7 @@ export default function GamePage() {
         </div>
 
         {/* Game Over Modal */}
-        {gameState.gameStatus === 'lost' && (
+        {gameState.gameStatus === 'lost' && showGameOver && (
           <GameOver gameState={gameState} onPlayAgain={handlePlayAgain} />
         )}
       </div>

@@ -21,6 +21,7 @@ export default function MultiplayerPage() {
   const [isMuted, setIsMuted] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [showGameOver, setShowGameOver] = useState(false);
   const gameStateRef = useRef<GameState | null>(null);
 
   const handleGameStateUpdate = (state: GameState) => {
@@ -79,6 +80,7 @@ export default function MultiplayerPage() {
 
   const handlePlayAgain = () => {
     setGameActive(false);
+    setShowGameOver(false);
     // Could implement rematch logic here
   };
 
@@ -116,6 +118,15 @@ export default function MultiplayerPage() {
     const interval = setInterval(updateTimes, 100);
     return () => clearInterval(interval);
   }, [gameActive]);
+
+  // Delay showing game over modal so ball can visibly stop at wall
+  useEffect(() => {
+    if (gameState?.gameStatus === 'lost') {
+      const timer = setTimeout(() => setShowGameOver(true), 2000);
+      return () => clearTimeout(timer);
+    }
+    setShowGameOver(false);
+  }, [gameState?.gameStatus]);
 
   // Show waiting room
   if (room && !gameActive) {
@@ -164,7 +175,7 @@ export default function MultiplayerPage() {
           </div>
 
           {/* Game Over Modal */}
-          {gameState.gameStatus === 'lost' && (
+          {gameState.gameStatus === 'lost' && showGameOver && (
             <GameOver gameState={gameState} onPlayAgain={handlePlayAgain} />
           )}
         </div>

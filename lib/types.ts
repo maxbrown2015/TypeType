@@ -27,8 +27,10 @@ export interface PlayerScore {
   volleys: number;
   correctWords: number;
   totalWords: number;
-  accuracy: number; // percentage
+  accuracy: number; // percentage based on keystrokes
   averageResponseTime: number; // milliseconds
+  totalKeystrokes: number;
+  errantKeystrokes: number;
 }
 
 export interface GameState {

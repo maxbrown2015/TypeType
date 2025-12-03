@@ -188,3 +188,26 @@ export const calculateBallProgress = (
   const totalDistance = Math.abs(endX - startX);
   return Math.min(1, Math.max(0, traveled / totalDistance));
 };
+
+/**
+ * Compute keystroke stats for a typed word vs target
+ * Errant keystrokes are characters that don't match their position
+ * plus any extra characters beyond the target length.
+ */
+export const calculateKeystrokeStats = (input: string, target: string) => {
+  const total = input.length;
+  let errant = 0;
+  
+  const len = Math.min(input.length, target.length);
+  for (let i = 0; i < len; i++) {
+    if (input[i] !== target[i]) {
+      errant += 1;
+    }
+  }
+  
+  if (input.length > target.length) {
+    errant += input.length - target.length;
+  }
+  
+  return { totalKeystrokes: total, errantKeystrokes: errant };
+};
